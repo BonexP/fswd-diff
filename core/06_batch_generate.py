@@ -22,6 +22,8 @@ generate_defect = importlib.import_module("core.05_inpaint").generate_defect
 
 def batch_generate(pipe, image_dir, label_dir, output_dir, prompt):
 
+    os.makedirs(output_dir, exist_ok=True)
+
     for filename in os.listdir(image_dir):
         if not filename.endswith(".jpg"):
             continue
@@ -35,7 +37,14 @@ def batch_generate(pipe, image_dir, label_dir, output_dir, prompt):
         bboxes = yolo_to_bbox(label_path, w, h)
 
         for i, bbox in enumerate(bboxes):
+            result_path = f"{output_dir}/{filename}_gen_{i}.png"
+            mask_path = f"{output_dir}/{filename}_mask_{i}.png"
+
+            # Skip if both outputs already exist for this bbox index.
+            if os.path.exists(result_path) and os.path.exists(mask_path):
+                continue
+
             result, mask = generate_defect(pipe, image, bbox, prompt)
 
-            save_image(result, f"{output_dir}/{filename}_gen_{i}.png")
-            save_image(mask, f"{output_dir}/{filename}_mask_{i}.png")
+            save_image(result, result_path)
+            save_image(mask, mask_path)
