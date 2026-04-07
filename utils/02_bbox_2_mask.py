@@ -1,4 +1,19 @@
+"""
+02_bbox_to_mask.py
+
+功能：
+将YOLO或通用bbox转换为mask图像
+
+说明：
+mask中：
+- 白色区域 = 生成区域
+- 黑色区域 = 保持不变
+
+作者：你的论文项目
+"""
+
 from PIL import Image, ImageDraw
+
 
 def bbox_to_mask(image, bbox, expand_ratio=0.2):
     w, h = image.size
@@ -7,7 +22,6 @@ def bbox_to_mask(image, bbox, expand_ratio=0.2):
 
     x1, y1, x2, y2 = bbox
 
-    # 扩展bbox（关键）
     dw = (x2 - x1) * expand_ratio
     dh = (y2 - y1) * expand_ratio
 
