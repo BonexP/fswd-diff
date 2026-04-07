@@ -10,7 +10,9 @@ image + bbox → mask → diffusion → 新图
 作者：你的论文项目
 """
 
-from utils.02_bbox_to_mask import bbox_to_mask
+import importlib
+
+bbox_to_mask = importlib.import_module("utils.02_bbox_2_mask").bbox_to_mask
 
 
 def generate_defect(pipe, image, bbox, prompt):

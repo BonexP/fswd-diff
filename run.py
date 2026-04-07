@@ -10,8 +10,10 @@ run.py
 作者：你的论文项目
 """
 
-from models.01_load_model import load_model
-from core.06_batch_generate import batch_generate
+import importlib
+
+load_model = importlib.import_module("models.01_load_model").load_model
+batch_generate = importlib.import_module("core.06_batch_generate").batch_generate
 
 if __name__ == "__main__":
 

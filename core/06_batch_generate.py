@@ -11,9 +11,13 @@
 """
 
 import os
-from utils.03_yolo_utils import yolo_to_bbox
-from utils.04_image_utils import load_image, save_image
-from core.05_inpaint import generate_defect
+import importlib
+
+yolo_to_bbox = importlib.import_module("utils.03_yolo_utils").yolo_to_bbox
+image_utils = importlib.import_module("utils.04_image_utils")
+load_image = image_utils.load_image
+save_image = image_utils.save_image
+generate_defect = importlib.import_module("core.05_inpaint").generate_defect
 
 
 def batch_generate(pipe, image_dir, label_dir, output_dir, prompt):
