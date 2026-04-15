@@ -21,10 +21,12 @@ if __name__ == "__main__":
 
     prompt = "elongated tunnel defect on friction stir welding surface, realistic metal texture"
 
+    TARGET_CLASS = 2
     batch_generate(
         pipe,
         image_dir="data/images",
         label_dir="data/labels",
         output_dir="data/outputs",
+        target_class=TARGET_CLASS,
         prompt=prompt
     )
