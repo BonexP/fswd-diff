@@ -30,6 +30,18 @@ def bbox_to_mask(image, bbox, expand_ratio=0.2):
     x2 = min(w, x2 + dw)
     y2 = min(h, y2 + dh)
 
-    draw.rectangle([x1, y1, x2, y2], fill="white")
+    # 拉伸成细长椭圆
+    cx = (x1 + x2) / 2
+    cy = (y1 + y2) / 2
+
+    width = (x2 - x1)
+    height = (y2 - y1) * 0.3  # ⭐ 压扁！
+
+    draw.ellipse([
+        cx - width / 2,
+        cy - height / 2,
+        cx + width / 2,
+        cy + height / 2
+    ], fill="white")
 
     return mask

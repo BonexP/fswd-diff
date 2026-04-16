@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     pipe = load_model()
 
-    prompt = "elongated tunnel defect on friction stir welding surface, realistic metal texture"
+    prompt = "elongated tunnel defect along the welding seam, narrow and continuous cavity, dark interior, realistic metal surface, industrial defect, high detail"
 
     TARGET_CLASS = 2
     batch_generate(
