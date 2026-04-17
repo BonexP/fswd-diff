@@ -71,3 +71,25 @@ def save_yolo_label(output_path, bbox, img_width, img_height, cls):
 
     with open(output_path, "w") as f:
         f.write(f"{cls} {x_center} {y_center} {w} {h}\n")
+
+
+def save_yolo_labels(output_path, labels, img_width, img_height):
+    lines = []
+
+    for item in labels:
+        cls = item["class"]
+        x1, y1, x2, y2 = item["bbox"]
+
+        x_center = ((x1 + x2) / 2) / img_width
+        y_center = ((y1 + y2) / 2) / img_height
+        w = (x2 - x1) / img_width
+        h = (y2 - y1) / img_height
+
+        lines.append(f"{cls} {x_center} {y_center} {w} {h}\n")
+
+    out_dir = os.path.dirname(output_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    with open(output_path, "w") as f:
+        f.writelines(lines)
