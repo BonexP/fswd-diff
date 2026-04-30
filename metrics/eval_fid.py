@@ -147,7 +147,7 @@ def save_result(fid_score, kid_score, real_count, fake_count, output_csv="metric
     # 检查文件是否存在
     file_exists = os.path.exists(output_csv)
 
-    with open(output_csv, "a", newline="",encoding="utf-8") as f:
+    with open(output_csv, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
 
         # 如果是新文件，写入表头
@@ -178,18 +178,25 @@ def save_result(fid_score, kid_score, real_count, fake_count, output_csv="metric
 
 
 def print_csv_tail(filepath, lines=5):
-    """打印 CSV 最后几行"""
+    """打印 CSV 最后几行（带表头）"""
     if not os.path.exists(filepath):
         return
 
-    with open(filepath, "r",encoding="utf-8") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         rows = f.readlines()
 
     print("\n📋 最近评估记录:")
-    print("  " + "-" * 56)
-    for row in rows[-lines:]:
-        print("  " + row.strip())
-    print("  " + "-" * 56)
+    print("  " + "-" * 70)
+
+    # 打印表头（第一行）
+    if rows:
+        print("  " + rows[0].strip())
+        print("  " + "-" * 70)
+        # 打印最后 lines 行数据
+        for row in rows[-lines:]:
+            print("  " + row.strip())
+
+    print("  " + "-" * 70)
 
 
 if __name__ == "__main__":
@@ -232,11 +239,11 @@ if __name__ == "__main__":
         note = f"class_{TARGET_CLASS}" if TARGET_CLASS is not None else "all_classes"
         save_result(fid_score, kid_score, real_count, fake_count, OUTPUT_CSV, note)
         print("\n✅ 评估完成！")
-        print(f"\n📌 指标解读:")
-        print(f"   FID 越低越好（0 为完美）")
-        print(f"   KID 越低越好（对小样本更稳定）")
-        print(f"   样本数应 >= 100（当前: {real_count} vs {fake_count}）")
-        print(f"\n💡 对比模式: {'单类别（class ' + str(TARGET_CLASS) + '）' if TARGET_CLASS is not None else '全类别'}")
+        print(f"\n📊 最终结果:")
+        print(f"   🎯 FID = {fid_score:.4f}  (越低越好，0为完美)")
+        print(f"   🎯 KID = {kid_score:.4f}  (越低越好，对小样本更稳定)")
+        print(f"   📈 样本数: 真实={real_count}, 生成={fake_count} (建议 >= 100)")
+        print(f"   🏷️  对比模式: {'单类别（class ' + str(TARGET_CLASS) + '）' if TARGET_CLASS is not None else '全类别'}")
     else:
         print("\n❌ 评估失败，请检查数据目录与依赖")
 
