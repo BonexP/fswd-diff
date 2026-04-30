@@ -38,12 +38,15 @@ def count_images(directory):
 
 def filter_images_by_class(image_dir, label_dir, target_class, output_dir):
     """
-    从 image_dir 中筛选出仅包含 target_class 的图像
-    根据 label_dir 中的 YOLO 标签判断
-    结果写入 output_dir
+    从 image_dir 中筛选出包含 target_class 的图像。
+    如果一张图里有多个 target_class 实例，则复制多份到 output_dir，
+    让真实集按实例数对齐生成集的采样口径。
     """
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
     os.makedirs(output_dir, exist_ok=True)
-    count = 0
+    image_count = 0
+    instance_count = 0
 
     # 遍历标签文件
     for label_file in os.listdir(label_dir):
@@ -52,33 +55,45 @@ def filter_images_by_class(image_dir, label_dir, target_class, output_dir):
 
         label_path = os.path.join(label_dir, label_file)
 
-        # 读取标签文件，检查是否包含 target_class
-        has_target = False
+        # 读取标签文件，统计 target_class 实例数
+        target_instances = 0
         try:
             with open(label_path, 'r') as f:
                 for line in f:
                     parts = line.strip().split()
                     if parts and int(parts[0]) == target_class:
-                        has_target = True
-                        break
+                        target_instances += 1
         except Exception as e:
             print(f"  ⚠️  读取标签文件失败: {label_file} - {e}")
             continue
 
-        if has_target:
-            # 找到对应的图像文件
-            stem = Path(label_file).stem
-            for ext in ['.jpg', '.jpeg', '.png', '.bmp']:
-                image_file = f"{stem}{ext}"
-                image_path = os.path.join(image_dir, image_file)
-                if os.path.exists(image_path):
-                    # 复制到输出目录
-                    output_path = os.path.join(output_dir, image_file)
-                    shutil.copy(image_path, output_path)
-                    count += 1
-                    break
+        if target_instances == 0:
+            continue
 
-    return count
+        # 找到对应的图像文件
+        stem = Path(label_file).stem
+        source_path = None
+        source_ext = None
+        for ext in ['.jpg', '.jpeg', '.png', '.bmp']:
+            image_file = f"{stem}{ext}"
+            image_path = os.path.join(image_dir, image_file)
+            if os.path.exists(image_path):
+                source_path = image_path
+                source_ext = ext
+                break
+
+        if source_path is None:
+            print(f"  ⚠️  未找到对应图像: {stem}")
+            continue
+
+        image_count += 1
+        for idx in range(target_instances):
+            output_name = f"{stem}__cls{target_class}_{idx}{source_ext}"
+            output_path = os.path.join(output_dir, output_name)
+            shutil.copy(source_path, output_path)
+            instance_count += 1
+
+    return image_count, instance_count
 
 
 def compute_metrics(real_dir, fake_dir, target_class=None, label_dir=None):
@@ -91,8 +106,11 @@ def compute_metrics(real_dir, fake_dir, target_class=None, label_dir=None):
     if target_class is not None and label_dir is not None:
         print(f"\n🔍 按类别 {target_class} 筛选真实图...")
         temp_real_dir = "metrics/.temp_real_class"
-        real_count_filtered = filter_images_by_class(real_dir, label_dir, target_class, temp_real_dir)
-        print(f"  已筛选出 {real_count_filtered} 张类别 {target_class} 的真实图")
+        real_image_count, real_count_filtered = filter_images_by_class(
+            real_dir, label_dir, target_class, temp_real_dir
+        )
+        print(f"  已筛选出 {real_image_count} 张包含类别 {target_class} 的真实图")
+        print(f"  已按实例对齐扩展为 {real_count_filtered} 个真实样本")
         real_dir = temp_real_dir
 
     # 统计样本数
