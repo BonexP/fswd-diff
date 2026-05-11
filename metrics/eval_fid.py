@@ -14,7 +14,7 @@ eval_fid.py
 使用：
   python metrics/eval_fid.py              # 全量对比
   python metrics/eval_fid.py --class 2   # 仅对比 class 2 的真实图 vs 生成图
-  python metrics/eval_fid.py --class 2 --patch  # Patch 级评估（按实例对齐）
+  python metrics/eval_fid.py --class 2 --patch  # Patch 级评估（同类 patch 集合）
   python metrics/eval_fid.py --class 2 --patch --expand 0.2  # Patch 级外扩比例
 
 作者：你的论文项目
@@ -82,20 +82,7 @@ def ellipse_bounds_from_bbox(expanded_bbox):
     )
 
 
-def parse_generated_instance_id(stem):
-    if "_gen_" not in stem:
-        return None
-    base, idx_str = stem.rsplit("_gen_", 1)
-    try:
-        idx = int(idx_str)
-    except ValueError:
-        return None
-    if base.lower().endswith(".jpg"):
-        base = base[:-4]
-    return base, idx
-
-
-def build_real_instances(image_dir, label_dir, target_class):
+def collect_instances_by_class(image_dir, label_dir, target_class, source_tag):
     instances = {}
     for label_file in os.listdir(label_dir):
         if not label_file.endswith(".txt"):
@@ -104,7 +91,7 @@ def build_real_instances(image_dir, label_dir, target_class):
         stem = Path(label_file).stem
         image_path = find_image_by_stem(image_dir, stem)
         if image_path is None:
-            print(f"  ⚠️  未找到真实图像: {stem}")
+            print(f"  ⚠️  未找到{source_tag}图像: {stem}")
             continue
         with Image.open(image_path) as img:
             w, h = img.size
@@ -121,38 +108,12 @@ def build_real_instances(image_dir, label_dir, target_class):
     return instances
 
 
+def build_real_instances(image_dir, label_dir, target_class):
+    return collect_instances_by_class(image_dir, label_dir, target_class, "真实")
+
+
 def build_fake_instances(image_dir, label_dir, target_class):
-    instances = {}
-    for label_file in os.listdir(label_dir):
-        if not label_file.endswith(".txt"):
-            continue
-        label_path = os.path.join(label_dir, label_file)
-        stem = Path(label_file).stem
-        parsed = parse_generated_instance_id(stem)
-        if parsed is None:
-            continue
-        base_stem, idx = parsed
-        image_path = find_image_by_stem(image_dir, stem)
-        if image_path is None:
-            print(f"  ⚠️  未找到生成图像: {stem}")
-            continue
-        with Image.open(image_path) as img:
-            w, h = img.size
-        labels = load_yolo_labels(label_path, w, h)
-        if idx < 0 or idx >= len(labels):
-            print(f"  ⚠️  生成标签索引越界: {stem} idx={idx}")
-            continue
-        item = labels[idx]
-        if item["class"] != target_class:
-            print(f"  ⚠️  生成标签类别不匹配: {stem} idx={idx} class={item['class']}")
-            continue
-        instance_id = f"{base_stem}__idx{idx}"
-        instances[instance_id] = {
-            "image_path": image_path,
-            "bbox": item["bbox"],
-            "source": stem,
-        }
-    return instances
+    return collect_instances_by_class(image_dir, label_dir, target_class, "生成")
 
 
 def save_patch(image_path, bbox, expand_ratio, output_path):
@@ -185,53 +146,35 @@ def build_patch_datasets(
     real_instances = build_real_instances(real_image_dir, real_label_dir, target_class)
     fake_instances = build_fake_instances(fake_image_dir, fake_label_dir, target_class)
 
-    real_ids = set(real_instances.keys())
-    fake_ids = set(fake_instances.keys())
-    matched_ids = sorted(real_ids & fake_ids)
-    real_only = sorted(real_ids - fake_ids)
-    fake_only = sorted(fake_ids - real_ids)
-
-    if real_only or fake_only:
-        print("\n⚠️  实例数量不一致：")
-        print(f"  真实实例数: {len(real_ids)}")
-        print(f"  生成实例数: {len(fake_ids)}")
-        print(f"  可对齐实例数: {len(matched_ids)}")
-        if real_only:
-            print(f"  真实缺失匹配: {len(real_only)}")
-        if fake_only:
-            print(f"  生成缺失匹配: {len(fake_only)}")
+    if not real_instances or not fake_instances:
+        print("\n⚠️  Patch 样本为空：")
+        print(f"  真实实例数: {len(real_instances)}")
+        print(f"  生成实例数: {len(fake_instances)}")
 
     overflow_count = 0
-    for instance_id in matched_ids:
-        real_item = real_instances[instance_id]
-        fake_item = fake_instances[instance_id]
+    for instance_id, real_item in real_instances.items():
         real_out = os.path.join(temp_real_dir, f"{instance_id}.jpg")
-        fake_out = os.path.join(temp_fake_dir, f"{instance_id}.jpg")
-
         real_ok, real_expanded = save_patch(
             real_item["image_path"], real_item["bbox"], expand_ratio, real_out
         )
-        fake_ok, _ = save_patch(
-            fake_item["image_path"], fake_item["bbox"], expand_ratio, fake_out
-        )
-        if not real_ok or not fake_ok:
+        if not real_ok:
             continue
-
         ellipse_bounds = ellipse_bounds_from_bbox(real_expanded)
         x1, y1, x2, y2 = real_expanded
         ex1, ey1, ex2, ey2 = ellipse_bounds
         if ex1 < x1 or ey1 < y1 or ex2 > x2 or ey2 > y2:
             overflow_count += 1
 
+    for instance_id, fake_item in fake_instances.items():
+        fake_out = os.path.join(temp_fake_dir, f"{instance_id}.jpg")
+        save_patch(fake_item["image_path"], fake_item["bbox"], expand_ratio, fake_out)
+
     if overflow_count > 0:
         print(f"\n⚠️  椭圆掩码溢出 BBox: {overflow_count} 次")
 
     stats = {
-        "real_total": len(real_ids),
-        "fake_total": len(fake_ids),
-        "matched": len(matched_ids),
-        "real_only": len(real_only),
-        "fake_only": len(fake_only),
+        "real_total": len(real_instances),
+        "fake_total": len(fake_instances),
         "overflow": overflow_count,
     }
     return temp_real_dir, temp_fake_dir, stats
@@ -317,7 +260,7 @@ def compute_metrics(
         if target_class is None or label_dir is None or fake_label_dir is None:
             print("\n❌ Patch 模式需要 --class、真实标签目录与生成标签目录")
             return None, None, 0, 0, meta
-        print(f"\n🔍 Patch 模式：按类别 {target_class} 构建实例对齐 patch")
+        print(f"\n🔍 Patch 模式：按类别 {target_class} 构建同类 patch 集合")
         temp_real_dir, temp_fake_dir, stats = build_patch_datasets(
             real_dir,
             label_dir,
