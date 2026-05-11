@@ -125,6 +125,35 @@ KID（Kernel Inception Distance）同样用于衡量两组图像的分布差异�
 - 实例对齐的整图级 FID/KID，用于观察整体分布一致性；
 - patch 级 FID/KID，用于观察局部缺陷生成质量。
 
+### 7.1 Patch 级评估实现要点（已更新）
+
+补充说明当前脚本中 Patch 级评估的实现方式：
+
+1. **实例对齐方式**：按“实例 ID”对齐，实例 ID 定义为 `原图文件名 + 标注行索引`。
+2. **Patch 取法**：以 `bbox` 为准，按 `expand_ratio` 外扩后裁剪 patch（默认 `0.2`）。
+3. **生成图实例解析**：生成图像名符合 `{filename}_gen_{i}.jpg`，使用 `i` 作为实例索引。
+4. **样本数不一致处理**：命令行提示真实/生成/可对齐实例数量，并在 CSV 备注中记录 mismatch。
+5. **椭圆掩码溢出检查**：按 `bbox_to_mask` 的椭圆边界做溢出计数，若溢出会在命令行提示。
+
+### 7.2 Patch 级评估用法
+
+示例命令：
+
+```bash
+python metrics/eval_fid.py --class 2 --patch
+```
+
+可选参数：
+
+```bash
+python metrics/eval_fid.py --class 2 --patch --expand 0.2
+```
+
+说明：
+
+- `--patch` 启用 Patch 级评估，按实例对齐并裁剪 patch 计算 FID/KID。
+- `--expand` 设置 bbox 外扩比例，默认 `0.2`，建议与 inpaint 掩码外扩保持一致。
+
 ---
 
 ## 8. 结论
