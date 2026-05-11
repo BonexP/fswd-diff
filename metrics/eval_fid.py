@@ -29,6 +29,11 @@ from datetime import datetime
 from pathlib import Path
 from PIL import Image
 
+# Ensure repo root is on sys.path when running as a script.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 load_yolo_labels = importlib.import_module("utils.03_yolo_utils").load_yolo_labels
 
 
