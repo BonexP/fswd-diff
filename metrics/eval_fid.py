@@ -398,6 +398,7 @@ if __name__ == "__main__":
     FAKE_DIR = "data/outputs/images"
     FAKE_LABEL_DIR = "data/outputs/labels"
     OUTPUT_CSV = "metrics/eval_log.csv"
+    NOTE = None
     TARGET_CLASS = None  # 默认对比全量，可通过 --class 参数指定
     PATCH_MODE = False
     EXPAND_RATIO = 0.2
@@ -412,6 +413,18 @@ if __name__ == "__main__":
                 PATCH_MODE = True
             if arg == "--expand" and i + 1 < len(sys.argv) - 1:
                 EXPAND_RATIO = float(sys.argv[i + 2])
+            if arg == "--real-dir" and i + 1 < len(sys.argv) - 1:
+                REAL_DIR = sys.argv[i + 2]
+            if arg == "--label-dir" and i + 1 < len(sys.argv) - 1:
+                LABEL_DIR = sys.argv[i + 2]
+            if arg == "--fake-dir" and i + 1 < len(sys.argv) - 1:
+                FAKE_DIR = sys.argv[i + 2]
+            if arg == "--fake-label-dir" and i + 1 < len(sys.argv) - 1:
+                FAKE_LABEL_DIR = sys.argv[i + 2]
+            if arg == "--output-csv" and i + 1 < len(sys.argv) - 1:
+                OUTPUT_CSV = sys.argv[i + 2]
+            if arg == "--note" and i + 1 < len(sys.argv) - 1:
+                NOTE = sys.argv[i + 2]
 
     # 验证路径
     if not os.path.isdir(REAL_DIR):
@@ -442,11 +455,13 @@ if __name__ == "__main__":
 
     # 保存结果
     if fid_score is not None:
-        if PATCH_MODE:
+        if NOTE is not None:
+            note = NOTE
+        elif PATCH_MODE:
             note = f"class_{TARGET_CLASS}_patch" if TARGET_CLASS is not None else "all_classes_patch"
         else:
             note = f"class_{TARGET_CLASS}" if TARGET_CLASS is not None else "all_classes"
-        if meta.get("mode") == "patch" and (meta.get("real_only") or meta.get("fake_only")):
+        if NOTE is None and meta.get("mode") == "patch" and (meta.get("real_only") or meta.get("fake_only")):
             note += f"_mismatch_r{meta.get('real_only')}_f{meta.get('fake_only')}"
         save_result(fid_score, kid_score, real_count, fake_count, OUTPUT_CSV, note)
         print("\n✅ 评估完成！")

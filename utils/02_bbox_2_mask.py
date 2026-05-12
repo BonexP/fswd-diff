@@ -12,7 +12,7 @@ mask中：
 作者：你的论文项目
 """
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 
 def bbox_to_mask(image, bbox, expand_ratio=0.2):
@@ -45,3 +45,11 @@ def bbox_to_mask(image, bbox, expand_ratio=0.2):
     ], fill="white")
 
     return mask
+
+
+def bbox_to_soft_mask(image, bbox, expand_ratio=0.2, blur_radius=8):
+    hard_mask = bbox_to_mask(image, bbox, expand_ratio=expand_ratio)
+    soft_mask = hard_mask.convert("L").filter(
+        ImageFilter.GaussianBlur(radius=blur_radius)
+    )
+    return soft_mask
