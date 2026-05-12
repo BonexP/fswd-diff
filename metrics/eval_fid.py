@@ -25,6 +25,7 @@ import csv
 import sys
 import shutil
 import importlib
+import math
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -113,19 +114,83 @@ def build_real_instances(image_dir, label_dir, target_class):
 
 
 def build_fake_instances(image_dir, label_dir, target_class):
-    return collect_instances_by_class(image_dir, label_dir, target_class, "生成")
+    instances = {}
+    for label_file in os.listdir(label_dir):
+        if not label_file.endswith(".txt"):
+            continue
+
+        label_path = os.path.join(label_dir, label_file)
+        stem = Path(label_file).stem
+        image_path = find_image_by_stem(image_dir, stem)
+        if image_path is None:
+            print(f"  [WARNING] missing fake image: {stem}")
+            continue
+
+        with Image.open(image_path) as img:
+            w, h = img.size
+        labels = load_yolo_labels(label_path, w, h)
+        gen_idx = parse_generated_index(stem)
+
+        if gen_idx is None:
+            for idx, item in enumerate(labels):
+                if item["class"] != target_class:
+                    continue
+                instance_id = f"{stem}__idx{idx}"
+                instances[instance_id] = {
+                    "image_path": image_path,
+                    "bbox": item["bbox"],
+                    "source": stem,
+                }
+            continue
+
+        if gen_idx >= len(labels):
+            print(f"  [WARNING] generated index out of label range: {stem}")
+            continue
+
+        item = labels[gen_idx]
+        if item["class"] != target_class:
+            print(f"  [WARNING] generated index is not target class: {stem}")
+            continue
+
+        instance_id = f"{stem}__idx{gen_idx}"
+        instances[instance_id] = {
+            "image_path": image_path,
+            "bbox": item["bbox"],
+            "source": stem,
+        }
+    return instances
+
+
+def parse_generated_index(stem):
+    marker = "_gen_"
+    if marker not in stem:
+        return None
+
+    suffix = stem.rsplit(marker, 1)[1]
+    try:
+        return int(suffix)
+    except ValueError:
+        return None
 
 
 def save_patch(image_path, bbox, expand_ratio, output_path):
     with Image.open(image_path) as img:
         w, h = img.size
         x1, y1, x2, y2 = expand_bbox(bbox, w, h, expand_ratio)
-        if x2 <= x1 or y2 <= y1:
+
+        left = max(0, int(math.floor(x1)))
+        top = max(0, int(math.floor(y1)))
+        right = min(w, int(math.ceil(x2)))
+        bottom = min(h, int(math.ceil(y2)))
+
+        if right <= left or bottom <= top:
             return False, None
-        patch = img.crop((x1, y1, x2, y2)).convert("RGB")
+        patch = img.crop((left, top, right, bottom)).convert("RGB")
+        if patch.width == 0 or patch.height == 0:
+            return False, None
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         patch.save(output_path)
-    return True, (x1, y1, x2, y2)
+    return True, (left, top, right, bottom)
 
 
 def build_patch_datasets(
@@ -165,17 +230,25 @@ def build_patch_datasets(
         if ex1 < x1 or ey1 < y1 or ex2 > x2 or ey2 > y2:
             overflow_count += 1
 
+    skipped_fake_patches = 0
     for instance_id, fake_item in fake_instances.items():
         fake_out = os.path.join(temp_fake_dir, f"{instance_id}.jpg")
-        save_patch(fake_item["image_path"], fake_item["bbox"], expand_ratio, fake_out)
+        fake_ok, _ = save_patch(
+            fake_item["image_path"], fake_item["bbox"], expand_ratio, fake_out
+        )
+        if not fake_ok:
+            skipped_fake_patches += 1
 
     if overflow_count > 0:
         print(f"\n⚠️  椭圆掩码溢出 BBox: {overflow_count} 次")
+    if skipped_fake_patches > 0:
+        print(f"\n[WARNING] skipped invalid fake patches: {skipped_fake_patches}")
 
     stats = {
         "real_total": len(real_instances),
         "fake_total": len(fake_instances),
         "overflow": overflow_count,
+        "skipped_fake_patches": skipped_fake_patches,
     }
     return temp_real_dir, temp_fake_dir, stats
 
